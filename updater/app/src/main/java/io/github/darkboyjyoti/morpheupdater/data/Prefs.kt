@@ -18,10 +18,6 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_WIFI, true)
         set(value) = sp.edit().putBoolean(KEY_WIFI, value).apply()
 
-    var autoDownload: Boolean
-        get() = sp.getBoolean(KEY_AUTO_DOWNLOAD, true)
-        set(value) = sp.edit().putBoolean(KEY_AUTO_DOWNLOAD, value).apply()
-
     var notifications: Boolean
         get() = sp.getBoolean(KEY_NOTIFICATIONS, true)
         set(value) = sp.edit().putBoolean(KEY_NOTIFICATIONS, value).apply()
@@ -71,7 +67,6 @@ class Prefs(context: Context) {
         private const val KEY_REPO = "repo"
         private const val KEY_INTERVAL = "interval_hours"
         private const val KEY_WIFI = "wifi_only"
-        private const val KEY_AUTO_DOWNLOAD = "auto_download"
         private const val KEY_NOTIFICATIONS = "notifications"
         private const val KEY_LAST_CHECK = "last_check"
         private const val KEY_CACHED_RELEASES = "cached_releases"

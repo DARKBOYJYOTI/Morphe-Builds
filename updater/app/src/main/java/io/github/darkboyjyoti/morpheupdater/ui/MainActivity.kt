@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -25,6 +26,7 @@ import io.github.darkboyjyoti.morpheupdater.data.UpdateRepository
 import io.github.darkboyjyoti.morpheupdater.data.UpdateRow
 import io.github.darkboyjyoti.morpheupdater.databinding.ActivityMainBinding
 import io.github.darkboyjyoti.morpheupdater.install.InstallResultReceiver
+import io.github.darkboyjyoti.morpheupdater.install.InstallTracker
 import io.github.darkboyjyoti.morpheupdater.install.Installer
 import io.github.darkboyjyoti.morpheupdater.service.DownloadService
 import io.github.darkboyjyoti.morpheupdater.service.NetworkPolicy
@@ -64,6 +66,8 @@ class MainActivity : AppCompatActivity() {
     private var currentRelease: Release? = null
     private var loading = false
     private var lastLoadAt = 0L
+    private var splashHidden = false
+    private var installing: Set<String> = emptySet()
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -84,10 +88,6 @@ class MainActivity : AppCompatActivity() {
 
         binding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.action_refresh -> {
-                    load(force = true)
-                    true
-                }
                 R.id.action_installer -> {
                     startActivity(Intent(this, InstallerActivity::class.java))
                     true
@@ -111,6 +111,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        InstallTracker.packages.observe(this) { packages ->
+            installing = packages
+            adapter.setInstalling(packages)
+        }
+
+        binding.splashLogo.alpha = 0f
+        binding.splashLogo.scaleX = 0.82f
+        binding.splashLogo.scaleY = 0.82f
+        binding.splashLogo.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(420L)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+
         ContextCompat.registerReceiver(
             this,
             installReceiver,
@@ -128,6 +144,7 @@ class MainActivity : AppCompatActivity() {
         if (lastLoadAt > 0L && System.currentTimeMillis() - lastLoadAt > 60_000L) {
             load(force = false)
         }
+        InstallTracker.clear()
         refreshDownloadedFiles()
     }
 
@@ -155,7 +172,6 @@ class MainActivity : AppCompatActivity() {
     private fun load(force: Boolean) {
         if (loading) return
         loading = true
-        binding.statusProgress.isVisible = true
         if (force) binding.swipeRefresh.isRefreshing = true
 
         lifecycleScope.launch {
@@ -180,8 +196,8 @@ class MainActivity : AppCompatActivity() {
                 }
             } finally {
                 loading = false
-                binding.statusProgress.isVisible = false
                 binding.swipeRefresh.isRefreshing = false
+                hideSplash()
                 updateEmptyState()
             }
         }
@@ -190,7 +206,6 @@ class MainActivity : AppCompatActivity() {
     private fun render(release: Release) {
         val prefs = Prefs(this)
         binding.repoLabel.text = prefs.repo
-        binding.toolbar.subtitle = getString(R.string.status_release, release.tag)
 
         val lastChecked = prefs.lastCheckMillis
         binding.statusDetail.text = if (lastChecked > 0L) {
@@ -206,7 +221,7 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.status_ready)
         }
 
-        adapter.submit(rows, DownloadStore.states.value.orEmpty())
+        adapter.submit(rows, DownloadStore.states.value.orEmpty(), installing)
         updateEmptyState()
     }
 
@@ -240,7 +255,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (updated != rows) {
             rows = updated
-            adapter.submit(rows, DownloadStore.states.value.orEmpty())
+            adapter.submit(rows, DownloadStore.states.value.orEmpty(), installing)
         }
     }
 
@@ -276,12 +291,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun requestInstall(file: File, packageName: String, tag: String?) {
         when (val result = Installer.start(this, file, packageName, tag)) {
-            Installer.StartResult.Started -> toast(getString(R.string.toast_installed))
+            Installer.StartResult.Started -> {
+                InstallTracker.begin(packageName)
+                toast(getString(R.string.toast_installed))
+            }
             Installer.StartResult.NeedPermission -> UiUtils.showInstallPermissionDialog(this)
             is Installer.StartResult.Failed -> toast(
                 getString(R.string.error_install_failed, result.message),
             )
         }
+    }
+
+    private fun hideSplash() {
+        if (splashHidden) return
+        splashHidden = true
+        binding.splash.animate()
+            .alpha(0f)
+            .setDuration(220L)
+            .withEndAction { binding.splash.isVisible = false }
+            .start()
     }
 
     private fun handleInstallExtras(intent: Intent?) {

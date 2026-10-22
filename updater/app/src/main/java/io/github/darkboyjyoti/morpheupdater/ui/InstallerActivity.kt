@@ -15,6 +15,7 @@ import io.github.darkboyjyoti.morpheupdater.data.InstalledApps
 import io.github.darkboyjyoti.morpheupdater.data.SupportResult
 import io.github.darkboyjyoti.morpheupdater.databinding.ActivityInstallerBinding
 import io.github.darkboyjyoti.morpheupdater.databinding.ItemDownloadedBinding
+import io.github.darkboyjyoti.morpheupdater.install.InstallTracker
 import io.github.darkboyjyoti.morpheupdater.install.Installer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,6 +47,8 @@ class InstallerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        InstallTracker.clear()
+        pickedDetails?.let { details -> pickedFile?.let { renderPicked(it, details) } }
         refreshDownloadedList()
     }
 
@@ -135,7 +138,12 @@ class InstallerActivity : AppCompatActivity() {
 
     private fun requestInstall(file: File, packageName: String, tag: String?) {
         when (val result = Installer.start(this, file, packageName, tag)) {
-            Installer.StartResult.Started -> toast(getString(R.string.toast_installed))
+            Installer.StartResult.Started -> {
+                InstallTracker.begin(packageName)
+                binding.installApkButton.setText(R.string.action_installing)
+                binding.installApkButton.isEnabled = false
+                toast(getString(R.string.toast_installed))
+            }
             Installer.StartResult.NeedPermission -> UiUtils.showInstallPermissionDialog(this)
             is Installer.StartResult.Failed -> toast(
                 getString(R.string.error_install_failed, result.message),

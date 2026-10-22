@@ -41,7 +41,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.intervalSpinner.setSelection(selectedIndex)
 
         binding.wifiOnlySwitch.isChecked = prefs.wifiOnly
-        binding.autoDownloadSwitch.isChecked = prefs.autoDownload
         binding.notificationsSwitch.isChecked = prefs.notifications
 
         binding.versionText.text = getString(
@@ -69,7 +68,6 @@ class SettingsActivity : AppCompatActivity() {
         prefs.repo = repo
         prefs.intervalHours = intervalValues[selectedIndex]
         prefs.wifiOnly = binding.wifiOnlySwitch.isChecked
-        prefs.autoDownload = binding.autoDownloadSwitch.isChecked
         prefs.notifications = binding.notificationsSwitch.isChecked
 
         if (previousRepo != repo) {

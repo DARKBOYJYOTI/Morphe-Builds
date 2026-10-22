@@ -5,7 +5,6 @@ import io.github.darkboyjyoti.morpheupdater.data.DownloadFiles
 import io.github.darkboyjyoti.morpheupdater.data.Prefs
 import io.github.darkboyjyoti.morpheupdater.data.SupportResult
 import io.github.darkboyjyoti.morpheupdater.data.UpdateRepository
-import io.github.darkboyjyoti.morpheupdater.data.UpdateRow
 
 object UpdateChecker {
 
@@ -28,22 +27,7 @@ object UpdateChecker {
             Notifications.summary(context.applicationContext, pending.size, release.tag)
         }
 
-        if (prefs.autoDownload) {
-            startDownloads(context.applicationContext, prefs, pending)
-        }
-
         return pending.size
-    }
-
-    fun startDownloads(context: Context, prefs: Prefs, rows: List<UpdateRow>) {
-        for (row in rows) {
-            if (!NetworkPolicy.canDownload(context, prefs)) return
-            try {
-                DownloadService.start(context, row)
-            } catch (_: Exception) {
-                return
-            }
-        }
     }
 
     fun downloadedCount(context: Context): Int =

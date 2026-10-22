@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,6 +51,33 @@ def badging(aapt2: str, apk: Path) -> str:
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "aapt2 failed")
     return result.stdout
+
+
+def extract_icon(apk: Path, build_dir: Path, package: str, text: str) -> str | None:
+    candidates = re.findall(r"application-icon-(\d+):'([^']+)'", text)
+    images = [
+        (int(density), path)
+        for density, path in candidates
+        if path.lower().endswith((".png", ".webp", ".jpg", ".jpeg"))
+    ]
+    if not images:
+        single = re.search(r"application-icon:'([^']+)'", text)
+        if single and single.group(1).lower().endswith((".png", ".webp", ".jpg", ".jpeg")):
+            images = [(0, single.group(1))]
+    if not images:
+        return None
+
+    _, resource = max(images, key=lambda item: item[0])
+    extension = os.path.splitext(resource)[1].lower() or ".png"
+    icon_name = f"{package}-icon{extension}"
+    try:
+        with zipfile.ZipFile(apk) as archive:
+            data = archive.read(resource)
+        (build_dir / icon_name).write_bytes(data)
+        return icon_name
+    except Exception as error:  # noqa: BLE001 - icons are optional
+        print(f"warning: could not extract icon for {package}: {error}", file=sys.stderr)
+        return None
 
 
 def signer_digest(apksigner: str, apk: Path) -> str | None:
@@ -108,14 +136,18 @@ def main() -> int:
     assets = []
     for apk in sorted(build_dir.glob("*.apk")):
         try:
-            info = parse_badging(badging(aapt2, apk))
+            text = badging(aapt2, apk)
+            info = parse_badging(text)
         except Exception as error:  # noqa: BLE001 - keep the release build alive
             print(f"warning: skipping {apk.name}: {error}", file=sys.stderr)
             continue
 
+        icon_name = extract_icon(apk, build_dir, info["package"], text)
+
         assets.append(
             {
                 "file": apk.name,
+                "icon": icon_name,
                 "package": info["package"],
                 "label": info["label"],
                 "versionName": info["versionName"],

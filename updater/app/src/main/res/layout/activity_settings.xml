@@ -82,13 +82,6 @@
                         android:text="@string/settings_wifi_only" />
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/autoDownloadSwitch"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:paddingVertical="8dp"
-                        android:text="@string/settings_auto_download" />
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/notificationsSwitch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

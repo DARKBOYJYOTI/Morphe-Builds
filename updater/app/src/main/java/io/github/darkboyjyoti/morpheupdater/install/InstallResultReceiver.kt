@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.widget.Toast
+import io.github.darkboyjyoti.morpheupdater.data.DownloadStore
 import io.github.darkboyjyoti.morpheupdater.data.Prefs
+import java.io.File
 
 class InstallResultReceiver : BroadcastReceiver() {
 
@@ -13,6 +15,7 @@ class InstallResultReceiver : BroadcastReceiver() {
         const val EXTRA_PACKAGE = "install_package"
         const val EXTRA_TAG = "install_tag"
         const val EXTRA_VERSION_CODE = "install_version_code"
+        const val EXTRA_FILE_PATH = "install_file_path"
         const val ACTION_RESULT = "io.github.darkboyjyoti.morpheupdater.INSTALL_RESULT"
     }
 
@@ -27,6 +30,7 @@ class InstallResultReceiver : BroadcastReceiver() {
         val packageName = intent.getStringExtra(EXTRA_PACKAGE)
         val tag = intent.getStringExtra(EXTRA_TAG)
         val versionCode = intent.getLongExtra(EXTRA_VERSION_CODE, 0L)
+        val filePath = intent.getStringExtra(EXTRA_FILE_PATH)
 
         when (status) {
             PackageInstaller.STATUS_SUCCESS -> {
@@ -34,10 +38,16 @@ class InstallResultReceiver : BroadcastReceiver() {
                     Prefs(context.applicationContext)
                         .recordInstalled(packageName, tag, versionCode)
                 }
+                if (packageName != null) {
+                    DownloadStore.clear(packageName)
+                    InstallTracker.finish(packageName)
+                }
+                filePath?.let { path -> runCatching { File(path).delete() } }
                 toast(context, "Update installed.")
             }
 
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                // Keep the "Installing" state until the user answers the system dialog.
                 @Suppress("DEPRECATION")
                 val confirmation = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
                 if (confirmation != null) {
@@ -47,6 +57,7 @@ class InstallResultReceiver : BroadcastReceiver() {
             }
 
             else -> {
+                InstallTracker.finish(packageName)
                 val reason = message?.takeIf { it.isNotBlank() } ?: "status $status"
                 toast(context, "Install failed: $reason")
             }

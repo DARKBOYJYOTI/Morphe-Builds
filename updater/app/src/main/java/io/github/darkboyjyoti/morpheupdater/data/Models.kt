@@ -13,6 +13,7 @@ data class ReleaseAsset(
     val size: Long,
     val sha256: String?,
     val signerSha256: String?,
+    val iconUrl: String?,
 )
 
 data class Release(

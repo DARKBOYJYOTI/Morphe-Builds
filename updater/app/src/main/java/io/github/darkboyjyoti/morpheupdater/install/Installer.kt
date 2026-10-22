@@ -70,6 +70,7 @@ object Installer {
                     putExtra(InstallResultReceiver.EXTRA_PACKAGE, packageName)
                     putExtra(InstallResultReceiver.EXTRA_TAG, releaseTag)
                     putExtra(InstallResultReceiver.EXTRA_VERSION_CODE, versionCode)
+                    putExtra(InstallResultReceiver.EXTRA_FILE_PATH, file.absolutePath)
                 }
                 val pending = PendingIntent.getBroadcast(
                     context,

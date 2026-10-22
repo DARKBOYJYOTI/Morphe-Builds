@@ -145,6 +145,9 @@ object GithubApi {
                 size = asset.optLong("size", 0L),
                 sha256 = asset.optString("sha256").takeIf { it.isNotBlank() },
                 signerSha256 = asset.optString("signerSha256").takeIf { it.isNotBlank() },
+                iconUrl = asset.optString("icon")
+                    .takeIf { it.isNotBlank() }
+                    ?.let { releaseDownloadUrl(repo, tag, it) },
             )
         }
 
@@ -184,6 +187,7 @@ object GithubApi {
                 size = asset.optLong("size", 0L),
                 sha256 = null,
                 signerSha256 = null,
+                iconUrl = null,
             )
         }
 

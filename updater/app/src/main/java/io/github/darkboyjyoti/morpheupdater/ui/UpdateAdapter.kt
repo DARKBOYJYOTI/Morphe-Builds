@@ -12,6 +12,7 @@ import io.github.darkboyjyoti.morpheupdater.data.DownloadState
 import io.github.darkboyjyoti.morpheupdater.data.SupportResult
 import io.github.darkboyjyoti.morpheupdater.data.UpdateRow
 import io.github.darkboyjyoti.morpheupdater.databinding.ItemUpdateBinding
+import io.github.darkboyjyoti.morpheupdater.util.AppIcons
 
 class UpdateAdapter(
     private val onAction: (UpdateRow) -> Unit,
@@ -19,15 +20,26 @@ class UpdateAdapter(
 
     private var rows: List<UpdateRow> = emptyList()
     private var states: Map<String, DownloadState> = emptyMap()
+    private var installing: Set<String> = emptySet()
 
-    fun submit(newRows: List<UpdateRow>, newStates: Map<String, DownloadState>) {
+    fun submit(
+        newRows: List<UpdateRow>,
+        newStates: Map<String, DownloadState>,
+        newInstalling: Set<String>,
+    ) {
         rows = newRows
         states = newStates
+        installing = newInstalling
         notifyDataSetChanged()
     }
 
     fun setStates(newStates: Map<String, DownloadState>) {
         states = newStates
+        notifyDataSetChanged()
+    }
+
+    fun setInstalling(newInstalling: Set<String>) {
+        installing = newInstalling
         notifyDataSetChanged()
     }
 
@@ -68,21 +80,22 @@ class UpdateAdapter(
                 row.asset.versionName.ifBlank { row.releaseTag },
             )
 
-            val icon = if (row.installedVersionCode != null) {
-                runCatching {
-                    context.packageManager.getApplicationIcon(row.packageName)
-                }.getOrNull()
-            } else {
-                null
-            }
-            if (icon != null) {
-                binding.appIcon.setImageDrawable(icon)
-                binding.appIcon.imageTintList = null
-            } else {
-                binding.appIcon.setImageResource(R.drawable.ic_android)
-                binding.appIcon.imageTintList = ColorStateList.valueOf(
-                    AppRegistry.colorFor(row.packageName),
-                )
+            val iconKey = "${row.packageName}|${row.asset.iconUrl.orEmpty()}"
+            binding.appIcon.tag = iconKey
+            binding.appIcon.setImageResource(R.drawable.ic_android)
+            binding.appIcon.imageTintList = ColorStateList.valueOf(
+                AppRegistry.colorFor(row.packageName),
+            )
+            AppIcons.load(
+                context,
+                row.packageName,
+                row.asset.iconUrl,
+                row.downloadedFile,
+            ) { icon ->
+                if (binding.appIcon.tag == iconKey) {
+                    binding.appIcon.setImageDrawable(icon)
+                    binding.appIcon.imageTintList = null
+                }
             }
 
             val supportMessage = UiUtils.supportMessage(context, row.support)
@@ -110,6 +123,10 @@ class UpdateAdapter(
                 }
                 verifying -> {
                     binding.actionButton.setText(R.string.action_verifying)
+                    binding.actionButton.isEnabled = false
+                }
+                row.packageName in installing -> {
+                    binding.actionButton.setText(R.string.action_installing)
                     binding.actionButton.isEnabled = false
                 }
                 row.upToDate -> {
