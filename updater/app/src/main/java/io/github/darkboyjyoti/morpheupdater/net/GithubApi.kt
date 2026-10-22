@@ -17,7 +17,7 @@ object GithubApi {
     private const val API = "https://api.github.com"
 
     private val VERSION_ARCH = Regex(
-        """-v([0-9][A-Za-z0-9.]*?)-(arm64-v8a|armeabi-v7a|arm-v7a|x86|x86_64|universal)\.apk$""",
+        """-v([0-9][A-Za-z0-9.]*?)-(arm64-v8a|armeabi-v7a|arm-v7a|x86|x86_64|universal|all)\.apk$""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -166,6 +166,7 @@ object GithubApi {
             val abis = when {
                 arch.isBlank() -> emptyList()
                 arch.equals("universal", ignoreCase = true) -> emptyList()
+                arch.equals("all", ignoreCase = true) -> emptyList()
                 else -> listOf(arch)
             }
 
