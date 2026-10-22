@@ -14,9 +14,29 @@
         <item name="colorSurfaceVariant">@color/google_background</item>
         <item name="colorOutline">@color/google_outline_light</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@color/google_surface</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="q">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
+        <item name="popupMenuStyle">@style/Widget.MorpheBuilds.PopupMenu</item>
+        <item name="actionOverflowMenuStyle">@style/Widget.MorpheBuilds.OverflowMenu</item>
+    </style>
+
+    <style name="Widget.MorpheBuilds.PopupMenu" parent="Widget.MaterialComponents.PopupMenu">
+        <item name="android:popupBackground">@drawable/bg_popup_rounded</item>
+    </style>
+
+    <style name="Widget.MorpheBuilds.OverflowMenu" parent="Widget.MaterialComponents.PopupMenu.Overflow">
+        <item name="android:popupBackground">@drawable/bg_popup_rounded</item>
+    </style>
+
+    <style name="Widget.MorpheBuilds.Dropdown" parent="Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+        <item name="boxCornerRadiusTopStart">14dp</item>
+        <item name="boxCornerRadiusTopEnd">14dp</item>
+        <item name="boxCornerRadiusBottomStart">14dp</item>
+        <item name="boxCornerRadiusBottomEnd">14dp</item>
+        <item name="endIconMode">dropdown_menu</item>
     </style>
 
 </resources>

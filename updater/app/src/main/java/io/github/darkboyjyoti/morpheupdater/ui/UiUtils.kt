@@ -1,8 +1,13 @@
 package io.github.darkboyjyoti.morpheupdater.ui
 
+import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Color
+import android.os.Build
 import android.view.View
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.github.darkboyjyoti.morpheupdater.R
@@ -15,10 +20,32 @@ import java.util.Locale
 
 object UiUtils {
 
-    fun applySystemBarInsets(root: View) {
+    fun applyEdgeToEdge(activity: Activity) {
+        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+        activity.window.statusBarColor = Color.TRANSPARENT
+        activity.window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            activity.window.isNavigationBarContrastEnforced = false
+        }
+        val night = (activity.resources.configuration.uiMode and
+            Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
+            isAppearanceLightStatusBars = !night
+            isAppearanceLightNavigationBars = !night
+        }
+    }
+
+    fun applySystemBarInsets(root: View, topBar: View? = null) {
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val bottom = maxOf(bars.bottom, ime.bottom)
+            if (topBar != null) {
+                topBar.setPadding(topBar.paddingLeft, bars.top, topBar.paddingRight, topBar.paddingBottom)
+                view.setPadding(bars.left, 0, bars.right, bottom)
+            } else {
+                view.setPadding(bars.left, bars.top, bars.right, bottom)
+            }
             insets
         }
     }

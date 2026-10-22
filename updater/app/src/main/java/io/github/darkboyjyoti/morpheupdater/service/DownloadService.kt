@@ -9,6 +9,8 @@ import android.os.IBinder
 import android.os.SystemClock
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import io.github.darkboyjyoti.morpheupdater.R
+import io.github.darkboyjyoti.morpheupdater.data.ApkInspector
 import io.github.darkboyjyoti.morpheupdater.data.DownloadFiles
 import io.github.darkboyjyoti.morpheupdater.data.DownloadPhase
 import io.github.darkboyjyoti.morpheupdater.data.DownloadState
@@ -20,6 +22,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 class DownloadService : Service() {
 
@@ -31,6 +37,7 @@ class DownloadService : Service() {
         private const val EXTRA_SHA256 = "sha256"
         private const val EXTRA_VERSION_CODE = "version_code"
         private const val EXTRA_TAG = "release_tag"
+        private const val EXTRA_SIZE = "size"
 
         fun start(context: Context, row: UpdateRow): Intent {
             val intent = Intent(context, DownloadService::class.java).apply {
@@ -41,6 +48,7 @@ class DownloadService : Service() {
                 putExtra(EXTRA_SHA256, row.asset.sha256)
                 putExtra(EXTRA_VERSION_CODE, row.asset.versionCode)
                 putExtra(EXTRA_TAG, row.releaseTag)
+                putExtra(EXTRA_SIZE, row.asset.size)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 ContextCompat.startForegroundService(context, intent)
@@ -84,6 +92,7 @@ class DownloadService : Service() {
         val sha256 = intent.getStringExtra(EXTRA_SHA256)
         val versionCode = intent.getLongExtra(EXTRA_VERSION_CODE, 0L)
         val releaseTag = intent.getStringExtra(EXTRA_TAG)
+        val expectedSize = intent.getLongExtra(EXTRA_SIZE, 0L)
 
         this.packageName = packageName
         cancelled = false
@@ -94,21 +103,42 @@ class DownloadService : Service() {
             Notifications.progress(this, packageName, label, 0, 0L, 0L, indeterminate = true),
         )
 
-        if (target.isFile) {
-            DownloadStore.update(
-                packageName,
-                DownloadState(DownloadPhase.DOWNLOADED, 100, target.length(), target.length()),
-            )
-            Notifications.ready(this, packageName, label, target.absolutePath, releaseTag)
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelf(startId)
-            return START_NOT_STICKY
-        }
-
         DownloadStore.update(packageName, DownloadState(DownloadPhase.DOWNLOADING))
 
         downloadJob?.cancel()
         downloadJob = scope.launch {
+            val existing = target.takeIf { it.isFile }
+            if (existing != null) {
+                val valid = runCatching {
+                    val sizeOk = expectedSize <= 0L || existing.length() == expectedSize
+                    sizeOk && (sha256.isNullOrBlank() ||
+                        ApkInspector.sha256(existing).equals(sha256, ignoreCase = true))
+                }.getOrDefault(false)
+
+                if (valid) {
+                    DownloadStore.update(
+                        packageName,
+                        DownloadState(
+                            DownloadPhase.DOWNLOADED,
+                            100,
+                            existing.length(),
+                            existing.length(),
+                        ),
+                    )
+                    Notifications.ready(
+                        this@DownloadService,
+                        packageName,
+                        label,
+                        existing.absolutePath,
+                        releaseTag,
+                    )
+                    ServiceCompat.stopForeground(this@DownloadService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                    stopSelf(startId)
+                    return@launch
+                }
+                existing.delete()
+            }
+
             val result = ResumableDownloader(
                 url = url,
                 target = target,
@@ -148,14 +178,15 @@ class DownloadService : Service() {
                 }
 
                 is ResumableDownloader.Result.Failure -> {
+                    val message = friendlyFailure(result)
                     DownloadStore.update(
                         packageName,
                         DownloadState(
                             phase = DownloadPhase.FAILED,
-                            message = result.message,
+                            message = message,
                         ),
                     )
-                    Notifications.failed(this@DownloadService, packageName, label, result.message)
+                    Notifications.failed(this@DownloadService, packageName, label, message)
                 }
 
                 ResumableDownloader.Result.Cancelled -> {
@@ -168,6 +199,26 @@ class DownloadService : Service() {
         }
 
         return START_NOT_STICKY
+    }
+
+    private fun friendlyFailure(
+        result: ResumableDownloader.Result.Failure,
+    ): String {
+        if (result.message == "checksum_mismatch") {
+            return getString(R.string.error_corrupted_download)
+        }
+        val cause = result.cause
+        if (cause is UnknownHostException ||
+            cause is SocketTimeoutException ||
+            cause is ConnectException ||
+            cause is IOException
+        ) {
+            return getString(R.string.error_no_network)
+        }
+        if (result.message.startsWith("HTTP ")) {
+            return getString(R.string.error_download_generic)
+        }
+        return result.message.ifBlank { getString(R.string.error_download_generic) }
     }
 
     private fun updateProgressNotification(

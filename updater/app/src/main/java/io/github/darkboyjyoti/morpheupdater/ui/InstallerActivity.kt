@@ -36,9 +36,10 @@ class InstallerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UiUtils.applyEdgeToEdge(this)
         binding = ActivityInstallerBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        UiUtils.applySystemBarInsets(binding.root)
+        UiUtils.applySystemBarInsets(binding.root, binding.toolbar)
 
         binding.toolbar.setNavigationOnClickListener { finish() }
         binding.pickApkButton.setOnClickListener { pickLauncher.launch(arrayOf("*/*")) }

@@ -25,6 +25,7 @@
 
     <string name="action_update">Update</string>
     <string name="action_install">Install</string>
+    <string name="action_retry">Retry</string>
     <string name="action_download">Download</string>
     <string name="action_downloading">Downloading %1$d%%</string>
     <string name="action_verifying">Verifying…</string>
@@ -93,6 +94,8 @@
     <string name="error_rate_limited">GitHub rate limit reached. Try again later.</string>
     <string name="error_release_not_found">No release with APK assets was found.</string>
     <string name="error_download">Download failed: %1$s</string>
+    <string name="error_corrupted_download">The download was corrupted and has been deleted. Try again.</string>
+    <string name="error_download_generic">Download failed. Check your internet connection and try again.</string>
     <string name="error_install_permission">Allow installing unknown apps for Morphe Builds, then try again.</string>
     <string name="error_install_failed">Install failed: %1$s</string>
     <string name="error_file_missing">The downloaded file is missing. Download it again.</string>

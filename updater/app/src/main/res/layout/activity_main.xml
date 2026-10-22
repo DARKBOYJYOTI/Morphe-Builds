@@ -15,13 +15,10 @@
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
+            android:layout_height="wrap_content"
             android:background="?attr/colorSurface"
-            app:logo="@drawable/ic_launcher_legacy"
-            app:menu="@menu/menu_main"
-            app:subtitle="@string/app_subtitle"
-            app:title="@string/app_name"
-            app:titleCentered="false" />
+            android:minHeight="?attr/actionBarSize"
+            app:menu="@menu/menu_main" />
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"

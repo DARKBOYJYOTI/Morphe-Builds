@@ -14,12 +14,14 @@ class SettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private val intervalValues = listOf(0, 6, 12, 24)
+    private var selectedInterval = 2
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UiUtils.applyEdgeToEdge(this)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        UiUtils.applySystemBarInsets(binding.root)
+        UiUtils.applySystemBarInsets(binding.root, binding.toolbar)
 
         binding.toolbar.setNavigationOnClickListener { finish() }
 
@@ -32,13 +34,15 @@ class SettingsActivity : AppCompatActivity() {
             getString(R.string.interval_12h),
             getString(R.string.interval_24h),
         )
-        binding.intervalSpinner.adapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            intervalLabels,
-        )
         val selectedIndex = intervalValues.indexOf(prefs.intervalHours).takeIf { it >= 0 } ?: 2
-        binding.intervalSpinner.setSelection(selectedIndex)
+        selectedInterval = selectedIndex
+        binding.intervalDropdown.setAdapter(
+            ArrayAdapter(this, R.layout.item_dropdown, intervalLabels),
+        )
+        binding.intervalDropdown.setText(intervalLabels[selectedIndex], false)
+        binding.intervalDropdown.setOnItemClickListener { _, _, position, _ ->
+            selectedInterval = position
+        }
 
         binding.wifiOnlySwitch.isChecked = prefs.wifiOnly
         binding.notificationsSwitch.isChecked = prefs.notifications
@@ -62,11 +66,8 @@ class SettingsActivity : AppCompatActivity() {
 
         val prefs = Prefs(this)
         val previousRepo = prefs.repo
-        val selectedIndex = binding.intervalSpinner.selectedItemPosition
-            .coerceIn(0, intervalValues.lastIndex)
-
         prefs.repo = repo
-        prefs.intervalHours = intervalValues[selectedIndex]
+        prefs.intervalHours = intervalValues[selectedInterval.coerceIn(0, intervalValues.lastIndex)]
         prefs.wifiOnly = binding.wifiOnlySwitch.isChecked
         prefs.notifications = binding.notificationsSwitch.isChecked
 

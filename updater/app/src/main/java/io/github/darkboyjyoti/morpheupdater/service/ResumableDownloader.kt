@@ -54,6 +54,7 @@ class ResumableDownloader(
                     offset = 0L
                     continue
                 } else if (code != HttpURLConnection.HTTP_OK && code != 206) {
+                    part.delete()
                     return Result.Failure("HTTP $code")
                 }
 
@@ -103,6 +104,7 @@ class ResumableDownloader(
                 break
             } catch (error: Exception) {
                 if (isCancelled()) return Result.Cancelled
+                part.delete()
                 return Result.Failure(error.message ?: "network_error", error)
             } finally {
                 connection?.disconnect()

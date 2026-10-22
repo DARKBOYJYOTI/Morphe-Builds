@@ -99,63 +99,78 @@ class UpdateAdapter(
             }
 
             val supportMessage = UiUtils.supportMessage(context, row.support)
-            binding.reasonText.isVisible = supportMessage != null
-            binding.reasonText.text = supportMessage
+            val failureMessage = state.message?.takeIf {
+                state.phase == DownloadPhase.FAILED && it.isNotBlank()
+            }
+            val message = failureMessage ?: supportMessage
+            binding.reasonText.isVisible = message != null
+            binding.reasonText.text = message
 
             val downloading = state.phase == DownloadPhase.DOWNLOADING
             val verifying = state.phase == DownloadPhase.VERIFYING
+            val failed = state.phase == DownloadPhase.FAILED
+            val installingNow = row.packageName in installing
+            val busy = downloading || verifying || installingNow
+
+            var clickable = false
+            var grayed = false
 
             when {
                 row.signatureConflict -> {
                     binding.actionButton.setText(R.string.support_unsupported)
-                    binding.actionButton.isEnabled = false
+                    grayed = true
                 }
                 row.support !is SupportResult.Supported -> {
                     binding.actionButton.setText(R.string.support_unsupported)
-                    binding.actionButton.isEnabled = false
+                    grayed = true
+                }
+                installingNow -> {
+                    binding.actionButton.setText(R.string.action_installing)
                 }
                 downloading -> {
                     binding.actionButton.text = context.getString(
                         R.string.action_downloading,
                         state.progress,
                     )
-                    binding.actionButton.isEnabled = false
                 }
                 verifying -> {
                     binding.actionButton.setText(R.string.action_verifying)
-                    binding.actionButton.isEnabled = false
-                }
-                row.packageName in installing -> {
-                    binding.actionButton.setText(R.string.action_installing)
-                    binding.actionButton.isEnabled = false
                 }
                 row.upToDate -> {
                     binding.actionButton.setText(R.string.action_up_to_date)
-                    binding.actionButton.isEnabled = false
+                    grayed = true
                 }
                 row.downloadedFile?.isFile == true || state.phase == DownloadPhase.DOWNLOADED -> {
                     binding.actionButton.setText(R.string.action_install_now)
-                    binding.actionButton.isEnabled = true
+                    clickable = true
+                }
+                failed -> {
+                    binding.actionButton.setText(R.string.action_retry)
+                    clickable = true
                 }
                 row.installedVersionCode != null -> {
                     binding.actionButton.setText(R.string.action_update)
-                    binding.actionButton.isEnabled = true
+                    clickable = true
                 }
                 else -> {
                     binding.actionButton.setText(R.string.action_install)
-                    binding.actionButton.isEnabled = true
+                    clickable = true
                 }
             }
-            binding.actionButton.alpha = if (binding.actionButton.isEnabled) 1f else 0.45f
+
+            binding.actionButton.isEnabled = true
+            binding.actionButton.isClickable = clickable
+            binding.actionButton.isFocusable = clickable
+            binding.actionButton.alpha = if (grayed) 0.45f else 1f
             binding.root.alpha = if (row.support is SupportResult.Supported) 1f else 0.65f
 
-            binding.progressBar.isVisible = downloading || verifying
-            binding.progressBar.isIndeterminate = verifying
-            if (!verifying) {
+            binding.progressBar.isVisible = busy
+            binding.progressBar.isIndeterminate = verifying || installingNow
+            if (!binding.progressBar.isIndeterminate) {
                 binding.progressBar.progress = state.progress
             }
 
-            binding.actionButton.setOnClickListener { onAction(row) }
+            binding.actionButton.setOnClickListener { if (clickable) onAction(row) }
         }
     }
 }

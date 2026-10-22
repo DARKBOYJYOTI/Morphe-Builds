@@ -11,8 +11,9 @@
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
+        android:layout_height="wrap_content"
         android:background="?attr/colorSurface"
+        android:minHeight="?attr/actionBarSize"
         app:navigationIcon="@drawable/ic_arrow_back"
         app:title="@string/settings_title" />
 
@@ -60,18 +61,21 @@
                             android:singleLine="true" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <TextView
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/intervalLayout"
+                        style="@style/Widget.MorpheBuilds.Dropdown"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:text="@string/settings_interval"
-                        android:textAppearance="?attr/textAppearanceLabelLarge" />
+                        android:layout_marginTop="8dp"
+                        android:hint="@string/settings_interval">
 
-                    <Spinner
-                        android:id="@+id/intervalSpinner"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp" />
+                        <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                            android:id="@+id/intervalDropdown"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="none"
+                            android:popupBackground="@drawable/bg_popup_rounded" />
+                    </com.google.android.material.textfield.TextInputLayout>
 
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/wifiOnlySwitch"

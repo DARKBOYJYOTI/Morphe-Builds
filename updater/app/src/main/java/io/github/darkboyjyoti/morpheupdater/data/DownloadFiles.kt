@@ -42,6 +42,15 @@ object DownloadFiles {
         partFor(file).delete()
     }
 
+    fun cleanupStaleParts(context: Context, maxAgeMillis: Long = 24L * 60L * 60L * 1000L) {
+        val now = System.currentTimeMillis()
+        directory(context)
+            .listFiles { file -> file.isFile && file.name.endsWith(".part") }
+            ?.forEach { part ->
+                if (now - part.lastModified() > maxAgeMillis) part.delete()
+            }
+    }
+
     fun formatBytes(bytes: Long): String {
         if (bytes < 1024) return "$bytes B"
         val units = arrayOf("KB", "MB", "GB")

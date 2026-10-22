@@ -8,10 +8,13 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
+import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
@@ -82,9 +85,20 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UiUtils.applyEdgeToEdge(this)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        UiUtils.applySystemBarInsets(binding.root)
+        UiUtils.applySystemBarInsets(binding.root, binding.toolbar)
+
+        val header = layoutInflater.inflate(R.layout.view_header, binding.toolbar, false)
+        binding.toolbar.addView(
+            header,
+            Toolbar.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.START or Gravity.CENTER_VERTICAL,
+            ),
+        )
 
         binding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
