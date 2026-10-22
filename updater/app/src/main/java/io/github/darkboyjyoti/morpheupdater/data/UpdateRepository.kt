@@ -50,7 +50,7 @@ object UpdateRepository {
                 support = support,
                 upToDate = upToDate,
                 signatureConflict = signatureConflict,
-                downloadedFile = DownloadFiles.find(context, packageName),
+                downloadedFile = DownloadFiles.findFor(context, packageName, asset.versionCode),
                 releaseTag = release.tag,
             )
         }

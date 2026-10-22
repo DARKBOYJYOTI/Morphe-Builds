@@ -24,6 +24,13 @@ object DownloadFiles {
             .maxByOrNull { it.lastModified() }
     }
 
+    fun findFor(context: Context, packageName: String, versionCode: Long): File? {
+        val file = find(context, packageName) ?: return null
+        if (versionCode <= 0L) return file
+        val expected = "$packageName-$versionCode.apk"
+        return file.takeIf { it.name == expected }
+    }
+
     fun list(context: Context): List<File> =
         directory(context)
             .listFiles { file -> file.isFile && file.name.endsWith(".apk") }

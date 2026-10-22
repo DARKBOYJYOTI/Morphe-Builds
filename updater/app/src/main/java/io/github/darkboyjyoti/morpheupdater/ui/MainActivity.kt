@@ -235,7 +235,7 @@ class MainActivity : AppCompatActivity() {
             if (row.downloadedFile?.isFile == true) {
                 row
             } else {
-                row.copy(downloadedFile = DownloadFiles.find(this, row.packageName))
+                row.copy(downloadedFile = DownloadFiles.findFor(this, row.packageName, row.asset.versionCode))
             }
         }
         if (updated != rows) {
@@ -253,7 +253,7 @@ class MainActivity : AppCompatActivity() {
         if (row.upToDate) return
 
         val file = row.downloadedFile?.takeIf { it.isFile }
-            ?: DownloadFiles.find(this, row.packageName)
+            ?: DownloadFiles.findFor(this, row.packageName, row.asset.versionCode)
 
         if (file != null) {
             requestInstall(file, row.packageName, row.releaseTag)

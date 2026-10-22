@@ -76,7 +76,7 @@ def parse_badging(text: str) -> dict:
     info["versionCode"] = int(package.group(2) or 0)
     info["versionName"] = package.group(3)
 
-    sdk = re.search(r"sdkVersion:'(\d+)'", text)
+    sdk = re.search(r"(?:sdkVersion|minSdkVersion):'(\d+)'", text)
     target = re.search(r"targetSdkVersion:'(\d+)'", text)
     info["minSdk"] = int(sdk.group(1)) if sdk else 0
     info["targetSdk"] = int(target.group(1)) if target else 0
