@@ -60,6 +60,13 @@ jobs:
           echo "${DELIM}" >> "$GITHUB_OUTPUT"
           cp -f build.md build.tmp
 
+      - name: Generate update manifest
+        env:
+          TAG: ${{ steps.next_ver_code.outputs.NEXT_VER_CODE }}
+        run: |
+          python3 .github/scripts/gen_manifest.py build build/manifest.json "$TAG" "$GITHUB_REPOSITORY" \
+            || echo "::warning::update manifest generation failed; the updater app will fall back to asset name parsing"
+
       - name: Upload release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

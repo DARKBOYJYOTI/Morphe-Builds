@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.MorpheBuilds" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#8AB4F8</item>
+        <item name="colorOnPrimary">@color/google_dark</item>
+        <item name="colorPrimaryContainer">#1F2A3C</item>
+        <item name="colorOnPrimaryContainer">#D2E3FC</item>
+        <item name="colorSecondary">#81C995</item>
+        <item name="colorOnSecondary">@color/google_dark</item>
+        <item name="colorError">#F28B82</item>
+        <item name="colorSurface">@color/google_surface_dark</item>
+        <item name="colorOnSurface">#E8EAED</item>
+        <item name="colorSurfaceVariant">#1F2126</item>
+        <item name="colorOutline">@color/google_outline_dark</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/google_background_dark</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
+    </style>
+
+</resources>

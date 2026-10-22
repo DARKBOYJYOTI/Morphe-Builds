@@ -7,3 +7,11 @@ test*
 build.md
 cmpr
 *-temporary-files
+
+# Updater app
+updater/.gradle/
+updater/.idea/
+updater/**/build/
+updater/local.properties
+*.jks
+release.keystore

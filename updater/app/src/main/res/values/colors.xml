@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="google_blue">#4285F4</color>
+    <color name="google_red">#EA4335</color>
+    <color name="google_yellow">#FBBC05</color>
+    <color name="google_green">#34A853</color>
+    <color name="google_grey">#5F6368</color>
+    <color name="google_dark">#202124</color>
+    <color name="google_surface">#FFFFFF</color>
+    <color name="google_surface_dark">#17181C</color>
+    <color name="google_background">#F8F9FA</color>
+    <color name="google_background_dark">#101114</color>
+    <color name="google_outline_light">#E8EAED</color>
+    <color name="google_outline_dark">#2A2C31</color>
+</resources>

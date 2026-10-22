@@ -1,0 +1,72 @@
+name: Build Updater App
+
+on:
+  push:
+    paths:
+      - "updater/**"
+      - ".github/workflows/updater.yml"
+      - ".github/scripts/gen_manifest.py"
+  pull_request:
+    paths:
+      - "updater/**"
+      - ".github/workflows/updater.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Version info
+        id: version
+        run: |
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "name=1.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Decode signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.UPDATER_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/updater.keystore"
+            echo "release signing key is available"
+          else
+            echo "::warning::UPDATER_KEYSTORE_BASE64 is not set; the build will use debug signing and cannot update itself"
+          fi
+
+      - name: Build release APK
+        working-directory: updater
+        env:
+          UPDATER_VERSION_CODE: ${{ steps.version.outputs.code }}
+          UPDATER_VERSION_NAME: ${{ steps.version.outputs.name }}
+          UPDATER_KEYSTORE_PATH: ${{ runner.temp }}/updater.keystore
+          UPDATER_KEYSTORE_PASSWORD: ${{ secrets.UPDATER_KEYSTORE_PASSWORD }}
+          UPDATER_KEY_ALIAS: ${{ secrets.UPDATER_KEY_ALIAS }}
+          UPDATER_KEY_PASSWORD: ${{ secrets.UPDATER_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Show output
+        working-directory: updater
+        run: ls -lh app/build/outputs/apk/release/
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphe-builds-updater-${{ github.run_number }}
+          path: updater/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
