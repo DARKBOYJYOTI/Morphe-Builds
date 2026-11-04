@@ -4,10 +4,10 @@ Install [MicroG](https://github.com/MorpheApp/MicroG-RE/) for non-root YouTube a
 
 Built with **[Morphe-Builds](https://github.com/DARKBOYJYOTI/Morphe-Builds)**
   
-Patches: RookieEnough/De-Vanced/patches-1.6.3.mpp  
-[Changelog](https://github.com/RookieEnough/De-Vanced/releases/tag/v1.6.3)
+Patches: RookieEnough/De-Vanced/patches-1.6.4.mpp  
+[Changelog](https://github.com/RookieEnough/De-Vanced/releases/tag/v1.6.4)
 
-CLI: MorpheApp/morphe-cli/morphe-desktop-1.20.0-all.jar    
+CLI: MorpheApp/morphe-cli/morphe-desktop-2.0.0-all.jar    
 
 Skipped:  
-Patches: MorpheApp/morphe-patches/patches-2.0.0.mpp    
+Patches: MorpheApp/morphe-patches/patches-2.0.0.mpp      
