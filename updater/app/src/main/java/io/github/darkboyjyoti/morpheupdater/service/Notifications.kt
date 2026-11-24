@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -132,7 +133,9 @@ object Notifications {
         notify(context, downloadId(packageName) + 40_000, notification)
     }
 
+    @SuppressLint("MissingPermission")
     private fun notify(context: Context, id: Int, notification: Notification) {
+        if (!canPost(context)) return
         runCatching {
             NotificationManagerCompat.from(context).notify(id, notification)
         }
