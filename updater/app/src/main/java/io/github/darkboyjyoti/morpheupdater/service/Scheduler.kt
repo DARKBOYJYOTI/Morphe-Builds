@@ -25,9 +25,7 @@ object Scheduler {
         val component = ComponentName(appContext, UpdateCheckJobService::class.java)
         val builder = JobInfo.Builder(JOB_ID, component)
             .setPersisted(true)
-            .setRequiredNetworkType(
-                if (prefs.wifiOnly) JobInfo.NETWORK_TYPE_UNMETERED else JobInfo.NETWORK_TYPE_ANY,
-            )
+            .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
 
         builder.setPeriodic(TimeUnit.HOURS.toMillis(hours.toLong()))
 

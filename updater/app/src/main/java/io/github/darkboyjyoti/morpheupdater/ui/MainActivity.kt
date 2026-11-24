@@ -69,6 +69,8 @@ class MainActivity : AppCompatActivity() {
     private var currentRelease: Release? = null
     private var loading = false
     private var lastLoadAt = 0L
+    private var loadedRepo: String? = null
+    private var requestedRepo: String? = null
     private var splashHidden = false
     private var installing: Set<String> = emptySet()
 
@@ -155,10 +157,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (lastLoadAt > 0L && System.currentTimeMillis() - lastLoadAt > 60_000L) {
+        val currentRepo = Prefs(this).repo
+        val repoChanged = (loadedRepo != null && loadedRepo != currentRepo) ||
+            (requestedRepo != null && requestedRepo != currentRepo)
+        if (repoChanged) {
+            rows = emptyList()
+            currentRelease = null
+            loadedRepo = null
+            load(force = true)
+        } else if (lastLoadAt > 0L && System.currentTimeMillis() - lastLoadAt > 60_000L) {
             load(force = false)
         }
-        InstallTracker.clear()
         refreshDownloadedFiles()
     }
 
@@ -185,6 +194,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun load(force: Boolean) {
         if (loading) return
+        val repoAtStart = Prefs(this).repo
+        requestedRepo = repoAtStart
         loading = true
         if (force) binding.swipeRefresh.isRefreshing = true
 
@@ -198,6 +209,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 currentRelease = release
                 rows = builtRows
+                loadedRepo = repoAtStart
                 lastLoadAt = System.currentTimeMillis()
                 Prefs(this@MainActivity).lastCheckMillis = lastLoadAt
                 render(release)
@@ -213,6 +225,12 @@ class MainActivity : AppCompatActivity() {
                 binding.swipeRefresh.isRefreshing = false
                 hideSplash()
                 updateEmptyState()
+                if (repoAtStart != Prefs(this@MainActivity).repo) {
+                    rows = emptyList()
+                    currentRelease = null
+                    loadedRepo = null
+                    load(force = true)
+                }
             }
         }
     }
@@ -230,7 +248,7 @@ class MainActivity : AppCompatActivity() {
 
         val pending = rows.count { !it.upToDate && it.canInstall }
         binding.statusTitle.text = if (pending > 0) {
-            getString(R.string.status_updates_available, pending)
+            resources.getQuantityString(R.plurals.status_updates_available, pending, pending)
         } else {
             getString(R.string.status_ready)
         }
@@ -264,7 +282,14 @@ class MainActivity : AppCompatActivity() {
             if (row.downloadedFile?.isFile == true) {
                 row
             } else {
-                row.copy(downloadedFile = DownloadFiles.findFor(this, row.packageName, row.asset.versionCode))
+                row.copy(
+                    downloadedFile = DownloadFiles.findFor(
+                        this,
+                        row.packageName,
+                        row.asset.versionCode,
+                        row.releaseTag,
+                    ),
+                )
             }
         }
         if (updated != rows) {
@@ -282,7 +307,7 @@ class MainActivity : AppCompatActivity() {
         if (row.upToDate) return
 
         val file = row.downloadedFile?.takeIf { it.isFile }
-            ?: DownloadFiles.findFor(this, row.packageName, row.asset.versionCode)
+            ?: DownloadFiles.findFor(this, row.packageName, row.asset.versionCode, row.releaseTag)
 
         if (file != null) {
             requestInstall(file, row.packageName, row.releaseTag)
@@ -304,15 +329,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestInstall(file: File, packageName: String, tag: String?) {
-        when (val result = Installer.start(this, file, packageName, tag)) {
-            Installer.StartResult.Started -> {
-                InstallTracker.begin(packageName)
-                toast(getString(R.string.toast_installed))
+        if (packageName in installing) return
+        InstallTracker.begin(packageName)
+        lifecycleScope.launch {
+            when (val result = Installer.start(this@MainActivity, file, packageName, tag)) {
+                Installer.StartResult.Started -> toast(getString(R.string.toast_installed))
+                Installer.StartResult.NeedPermission -> {
+                    InstallTracker.finish(packageName)
+                    UiUtils.showInstallPermissionDialog(this@MainActivity)
+                }
+                is Installer.StartResult.Failed -> {
+                    InstallTracker.finish(packageName)
+                    toast(getString(R.string.error_install_failed, result.message))
+                }
             }
-            Installer.StartResult.NeedPermission -> UiUtils.showInstallPermissionDialog(this)
-            is Installer.StartResult.Failed -> toast(
-                getString(R.string.error_install_failed, result.message),
-            )
         }
     }
 

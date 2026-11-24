@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 
 enum class DownloadPhase {
     IDLE,
+    QUEUED,
     DOWNLOADING,
     VERIFYING,
     DOWNLOADED,
@@ -22,23 +23,22 @@ data class DownloadState(
 object DownloadStore {
 
     private val _states = MutableLiveData<Map<String, DownloadState>>(emptyMap())
+    private val currentStates = mutableMapOf<String, DownloadState>()
     val states: LiveData<Map<String, DownloadState>> = _states
 
+    @Synchronized
     fun get(packageName: String): DownloadState =
-        _states.value?.get(packageName) ?: DownloadState()
+        currentStates[packageName] ?: DownloadState()
 
+    @Synchronized
     fun update(packageName: String, state: DownloadState) {
-        synchronized(this) {
-            val current = _states.value.orEmpty()
-            _states.postValue(current + (packageName to state))
-        }
+        currentStates[packageName] = state
+        _states.postValue(currentStates.toMap())
     }
 
+    @Synchronized
     fun clear(packageName: String) {
-        synchronized(this) {
-            val current = _states.value.orEmpty().toMutableMap()
-            current.remove(packageName)
-            _states.postValue(current)
-        }
+        currentStates.remove(packageName)
+        _states.postValue(currentStates.toMap())
     }
 }

@@ -15,12 +15,13 @@ object UpdateRepository {
 
         release.assets.forEach { asset ->
             if (asset.packageName.isBlank()) return@forEach
-            grouped.getOrPut(asset.packageName) { mutableListOf() } += asset
+            val packageName = AppRegistry.canonicalPackageName(asset.packageName)
+            grouped.getOrPut(packageName) { mutableListOf() } += asset
         }
 
         val rows = grouped.map { (packageName, assets) ->
-            val installed = InstalledApps.get(context, packageName)
             val asset = chooseAsset(assets)
+            val installed = InstalledApps.get(context, asset.packageName)
             val support = Compatibility.forAsset(asset, installed)
             val signatureConflict = support is SupportResult.SignatureMismatch
 
@@ -50,7 +51,12 @@ object UpdateRepository {
                 support = support,
                 upToDate = upToDate,
                 signatureConflict = signatureConflict,
-                downloadedFile = DownloadFiles.findFor(context, packageName, asset.versionCode),
+                downloadedFile = DownloadFiles.findFor(
+                    context,
+                    packageName,
+                    asset.versionCode,
+                    release.tag,
+                ),
                 releaseTag = release.tag,
             )
         }

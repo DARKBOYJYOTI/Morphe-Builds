@@ -58,6 +58,9 @@ object AppRegistry {
             app.packageName == packageName || packageName in app.aliases
         }
 
+    fun canonicalPackageName(packageName: String): String =
+        byPackage(packageName)?.packageName ?: packageName
+
     fun byAssetName(fileName: String): KnownApp? {
         val lower = fileName.lowercase()
         var best: KnownApp? = null

@@ -22,6 +22,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.ArrayDeque
+import java.util.concurrent.atomic.AtomicBoolean
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -59,12 +62,22 @@ class DownloadService : Service() {
         }
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var downloadJob: Job? = null
-    private var packageName: String? = null
+    private data class DownloadRequest(
+        val packageName: String,
+        val url: String,
+        val label: String,
+        val sha256: String?,
+        val versionCode: Long,
+        val releaseTag: String?,
+        val expectedSize: Long,
+    )
 
-    @Volatile
-    private var cancelled = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val pendingDownloads = ArrayDeque<DownloadRequest>()
+    private val cancelled = AtomicBoolean(false)
+    private var activePackage: String? = null
+    private var downloadJob: Job? = null
+    private var latestStartId = 0
 
     private var lastNotificationAt = 0L
 
@@ -76,129 +89,189 @@ class DownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId = startId
         if (intent?.action != ACTION_START) {
-            stopSelf()
+            if (activePackage == null && pendingDownloads.isEmpty()) stopSelfResult(startId)
             return START_NOT_STICKY
         }
 
         val packageName = intent.getStringExtra(EXTRA_PACKAGE)
         val url = intent.getStringExtra(EXTRA_URL)
         if (packageName.isNullOrBlank() || url.isNullOrBlank()) {
-            stopSelf()
+            if (activePackage == null && pendingDownloads.isEmpty()) stopSelfResult(startId)
             return START_NOT_STICKY
         }
 
-        val label = intent.getStringExtra(EXTRA_LABEL) ?: packageName
-        val sha256 = intent.getStringExtra(EXTRA_SHA256)
-        val versionCode = intent.getLongExtra(EXTRA_VERSION_CODE, 0L)
-        val releaseTag = intent.getStringExtra(EXTRA_TAG)
-        val expectedSize = intent.getLongExtra(EXTRA_SIZE, 0L)
-
-        this.packageName = packageName
-        cancelled = false
-
-        val target = DownloadFiles.fileFor(this, packageName, versionCode)
-        startForegroundCompat(
-            packageName,
-            Notifications.progress(this, packageName, label, 0, 0L, 0L, indeterminate = true),
-        )
-
-        DownloadStore.update(packageName, DownloadState(DownloadPhase.DOWNLOADING))
-
-        downloadJob?.cancel()
-        downloadJob = scope.launch {
-            val existing = target.takeIf { it.isFile }
-            if (existing != null) {
-                val valid = runCatching {
-                    val sizeOk = expectedSize <= 0L || existing.length() == expectedSize
-                    sizeOk && (sha256.isNullOrBlank() ||
-                        ApkInspector.sha256(existing).equals(sha256, ignoreCase = true))
-                }.getOrDefault(false)
-
-                if (valid) {
-                    DownloadStore.update(
-                        packageName,
-                        DownloadState(
-                            DownloadPhase.DOWNLOADED,
-                            100,
-                            existing.length(),
-                            existing.length(),
-                        ),
-                    )
-                    Notifications.ready(
-                        this@DownloadService,
-                        packageName,
-                        label,
-                        existing.absolutePath,
-                        releaseTag,
-                    )
-                    ServiceCompat.stopForeground(this@DownloadService, ServiceCompat.STOP_FOREGROUND_REMOVE)
-                    stopSelf(startId)
-                    return@launch
-                }
-                existing.delete()
-            }
-
-            val result = ResumableDownloader(
-                url = url,
-                target = target,
-                expectedSha256 = sha256,
-                onProgress = { downloaded, total ->
-                    val percent = if (total > 0L) ((downloaded * 100L) / total).toInt() else 0
-                    DownloadStore.update(
-                        packageName,
-                        DownloadState(
-                            phase = DownloadPhase.DOWNLOADING,
-                            progress = percent.coerceIn(0, 100),
-                            bytes = downloaded,
-                            total = total,
-                        ),
-                    )
-                    val now = SystemClock.elapsedRealtime()
-                    if (now - lastNotificationAt > 700L) {
-                        lastNotificationAt = now
-                        updateProgressNotification(packageName, label, percent, downloaded, total)
-                    }
-                },
-                isCancelled = { cancelled },
-            ).run()
-
-            when (result) {
-                is ResumableDownloader.Result.Success -> {
-                    DownloadStore.update(
-                        packageName,
-                        DownloadState(
-                            phase = DownloadPhase.DOWNLOADED,
-                            progress = 100,
-                            bytes = result.bytes,
-                            total = result.bytes,
-                        ),
-                    )
-                    Notifications.ready(this@DownloadService, packageName, label, result.file.absolutePath, releaseTag)
-                }
-
-                is ResumableDownloader.Result.Failure -> {
-                    val message = friendlyFailure(result)
-                    DownloadStore.update(
-                        packageName,
-                        DownloadState(
-                            phase = DownloadPhase.FAILED,
-                            message = message,
-                        ),
-                    )
-                    Notifications.failed(this@DownloadService, packageName, label, message)
-                }
-
-                ResumableDownloader.Result.Cancelled -> {
-                    DownloadStore.update(packageName, DownloadState(DownloadPhase.IDLE))
-                }
-            }
-
-            ServiceCompat.stopForeground(this@DownloadService, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelf(startId)
+        if (activePackage == packageName ||
+            pendingDownloads.any { it.packageName == packageName }
+        ) {
+            return START_NOT_STICKY
         }
 
+        val request = DownloadRequest(
+            packageName = packageName,
+            url = url,
+            label = intent.getStringExtra(EXTRA_LABEL) ?: packageName,
+            sha256 = intent.getStringExtra(EXTRA_SHA256),
+            versionCode = intent.getLongExtra(EXTRA_VERSION_CODE, 0L),
+            releaseTag = intent.getStringExtra(EXTRA_TAG),
+            expectedSize = intent.getLongExtra(EXTRA_SIZE, 0L),
+        )
+        pendingDownloads.addLast(request)
+        DownloadStore.update(packageName, DownloadState(DownloadPhase.QUEUED))
+        if (activePackage == null) {
+            processNext()
+        }
         return START_NOT_STICKY
+    }
+
+    private fun processNext() {
+        val request = pendingDownloads.pollFirst()
+        if (request == null) {
+            activePackage = null
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopSelfResult(latestStartId)
+            return
+        }
+
+        activePackage = request.packageName
+        DownloadStore.update(request.packageName, DownloadState(DownloadPhase.DOWNLOADING))
+        lastNotificationAt = 0L
+        startForegroundCompat(
+            request.packageName,
+            Notifications.progress(
+                this,
+                request.packageName,
+                request.label,
+                0,
+                0L,
+                request.expectedSize,
+                indeterminate = request.expectedSize <= 0L,
+            ),
+        )
+
+        downloadJob = scope.launch {
+            try {
+                download(request)
+            } catch (error: Exception) {
+                if (!cancelled.get()) {
+                    val message = friendlyFailure(
+                        ResumableDownloader.Result.Failure(
+                            error.message ?: "download_failed",
+                            error,
+                        ),
+                    )
+                    DownloadStore.update(
+                        request.packageName,
+                        DownloadState(DownloadPhase.FAILED, message = message),
+                    )
+                    Notifications.failed(this@DownloadService, request.packageName, request.label, message)
+                }
+            } finally {
+                withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
+                    if (activePackage == request.packageName) activePackage = null
+                    downloadJob = null
+                    processNext()
+                }
+            }
+        }
+    }
+
+    private fun download(request: DownloadRequest) {
+        val target = DownloadFiles.fileFor(
+            this,
+            request.packageName,
+            request.versionCode,
+            request.releaseTag,
+        )
+        val existing = target.takeIf { it.isFile }
+        if (existing != null) {
+            val valid = runCatching {
+                val sizeOk = request.expectedSize <= 0L || existing.length() == request.expectedSize
+                sizeOk && (request.sha256.isNullOrBlank() ||
+                    ApkInspector.sha256(existing).equals(request.sha256, ignoreCase = true))
+            }.getOrDefault(false)
+
+            if (valid) {
+                DownloadFiles.saveReleaseTag(existing, request.releaseTag)
+                DownloadStore.update(
+                    request.packageName,
+                    DownloadState(DownloadPhase.DOWNLOADED, 100, existing.length(), existing.length()),
+                )
+                Notifications.ready(
+                    this,
+                    request.packageName,
+                    request.label,
+                    existing.absolutePath,
+                    request.releaseTag,
+                )
+                return
+            }
+            existing.delete()
+        }
+
+        val result = ResumableDownloader(
+            url = request.url,
+            target = target,
+            expectedSha256 = request.sha256,
+            onProgress = { downloaded, total ->
+                val percent = if (total > 0L) ((downloaded * 100L) / total).toInt() else 0
+                DownloadStore.update(
+                    request.packageName,
+                    DownloadState(
+                        phase = DownloadPhase.DOWNLOADING,
+                        progress = percent.coerceIn(0, 100),
+                        bytes = downloaded,
+                        total = total,
+                    ),
+                )
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastNotificationAt > 700L) {
+                    lastNotificationAt = now
+                    updateProgressNotification(request.packageName, request.label, percent, downloaded, total)
+                }
+            },
+            isCancelled = { cancelled.get() },
+        ).run()
+
+        when (result) {
+            is ResumableDownloader.Result.Success -> {
+                if (request.expectedSize > 0L && result.bytes != request.expectedSize) {
+                    DownloadFiles.delete(result.file)
+                    val message = getString(R.string.error_corrupted_download)
+                    DownloadStore.update(
+                        request.packageName,
+                        DownloadState(DownloadPhase.FAILED, message = message),
+                    )
+                    Notifications.failed(this, request.packageName, request.label, message)
+                    return
+                }
+                DownloadFiles.saveReleaseTag(result.file, request.releaseTag)
+                DownloadStore.update(
+                    request.packageName,
+                    DownloadState(DownloadPhase.DOWNLOADED, 100, result.bytes, result.bytes),
+                )
+                Notifications.ready(
+                    this,
+                    request.packageName,
+                    request.label,
+                    result.file.absolutePath,
+                    request.releaseTag,
+                )
+            }
+
+            is ResumableDownloader.Result.Failure -> {
+                val message = friendlyFailure(result)
+                DownloadStore.update(
+                    request.packageName,
+                    DownloadState(DownloadPhase.FAILED, message = message),
+                )
+                Notifications.failed(this, request.packageName, request.label, message)
+            }
+
+            ResumableDownloader.Result.Cancelled ->
+                DownloadStore.update(request.packageName, DownloadState(DownloadPhase.IDLE))
+        }
     }
 
     private fun friendlyFailure(
@@ -267,9 +340,16 @@ class DownloadService : Service() {
     }
 
     override fun onDestroy() {
-        cancelled = true
+        cancelled.set(true)
         downloadJob?.cancel()
         scope.cancel()
         super.onDestroy()
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        cancelled.set(true)
+        downloadJob?.cancel()
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 }

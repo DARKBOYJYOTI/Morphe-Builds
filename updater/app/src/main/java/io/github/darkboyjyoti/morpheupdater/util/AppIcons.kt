@@ -7,6 +7,7 @@ import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
+import io.github.darkboyjyoti.morpheupdater.data.AppRegistry
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -69,8 +70,17 @@ object AppIcons {
         return null
     }
 
-    private fun installedIcon(context: Context, packageName: String): Drawable? =
-        runCatching { context.packageManager.getApplicationIcon(packageName) }.getOrNull()
+    private fun installedIcon(context: Context, packageName: String): Drawable? {
+        val known = AppRegistry.byPackage(packageName)
+        val candidates = buildList {
+            add(packageName)
+            known?.aliases?.forEach { if (it !in this) add(it) }
+            known?.packageName?.let { if (it !in this) add(it) }
+        }
+        return candidates.firstNotNullOfOrNull { candidate ->
+            runCatching { context.packageManager.getApplicationIcon(candidate) }.getOrNull()
+        }
+    }
 
     private fun cachedIcon(context: Context, packageName: String): Drawable? {
         val file = iconFile(context, packageName)

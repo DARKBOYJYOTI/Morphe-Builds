@@ -107,10 +107,11 @@ class UpdateAdapter(
             binding.reasonText.text = message
 
             val downloading = state.phase == DownloadPhase.DOWNLOADING
+            val queued = state.phase == DownloadPhase.QUEUED
             val verifying = state.phase == DownloadPhase.VERIFYING
             val failed = state.phase == DownloadPhase.FAILED
             val installingNow = row.packageName in installing
-            val busy = downloading || verifying || installingNow
+            val busy = queued || downloading || verifying || installingNow
 
             var clickable = false
             var grayed = false
@@ -126,6 +127,9 @@ class UpdateAdapter(
                 }
                 installingNow -> {
                     binding.actionButton.setText(R.string.action_installing)
+                }
+                queued -> {
+                    binding.actionButton.setText(R.string.action_queued)
                 }
                 downloading -> {
                     binding.actionButton.text = context.getString(
@@ -165,7 +169,7 @@ class UpdateAdapter(
             binding.root.alpha = if (row.support is SupportResult.Supported) 1f else 0.65f
 
             binding.progressBar.isVisible = busy
-            binding.progressBar.isIndeterminate = verifying || installingNow
+            binding.progressBar.isIndeterminate = queued || verifying || installingNow
             if (!binding.progressBar.isIndeterminate) {
                 binding.progressBar.progress = state.progress
             }

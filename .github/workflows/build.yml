@@ -40,8 +40,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG=$(gh release list -L 1 | awk -F '\t' '{print $3}')
-          if [ -z "$TAG" ]; then TAG=0; fi
+          TAG=$(gh release list --limit 1000 --json tagName \
+            --jq '[.[] | select(.tagName | test("^[0-9]+$"))][0].tagName // "0"')
           echo "NEXT_VER_CODE=$((TAG + 1))" >> $GITHUB_OUTPUT
 
       - name: Build APKs

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.widget.Toast
+import io.github.darkboyjyoti.morpheupdater.data.DownloadFiles
 import io.github.darkboyjyoti.morpheupdater.data.DownloadStore
 import io.github.darkboyjyoti.morpheupdater.data.Prefs
 import java.io.File
@@ -41,6 +42,7 @@ class InstallResultReceiver : BroadcastReceiver() {
                 if (packageName != null) {
                     DownloadStore.clear(packageName)
                     InstallTracker.finish(packageName)
+                    DownloadFiles.deleteForPackage(context, packageName)
                 }
                 filePath?.let { path -> runCatching { File(path).delete() } }
                 toast(context, "Update installed.")

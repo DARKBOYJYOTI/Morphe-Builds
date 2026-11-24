@@ -7,8 +7,12 @@ import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import androidx.core.content.FileProvider
+import io.github.darkboyjyoti.morpheupdater.R
+import io.github.darkboyjyoti.morpheupdater.data.AppRegistry
 import io.github.darkboyjyoti.morpheupdater.data.ApkInspector
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 object Installer {
@@ -33,30 +37,41 @@ object Installer {
             Intent(Settings.ACTION_SECURITY_SETTINGS)
         }
 
-    fun start(
+    suspend fun start(
         context: Context,
         file: File,
         packageName: String,
         releaseTag: String?,
-    ): StartResult {
-        if (!file.isFile) return StartResult.Failed("file_missing")
-        if (!hasInstallPermission(context)) return StartResult.NeedPermission
+    ): StartResult = withContext(Dispatchers.IO) {
+        if (!file.isFile) {
+            return@withContext StartResult.Failed(context.getString(R.string.error_file_missing))
+        }
+        if (!hasInstallPermission(context)) return@withContext StartResult.NeedPermission
 
-        val versionCode = runCatching { ApkInspector.inspect(context, file)?.versionCode }
-            .getOrNull() ?: 0L
+        val details = runCatching { ApkInspector.inspect(context, file) }
+            .getOrNull() ?: return@withContext StartResult.Failed(context.getString(R.string.error_invalid_apk))
+        val knownApp = AppRegistry.byPackage(packageName)
+        val matchesExpected = details.packageName == packageName ||
+            knownApp?.let {
+                details.packageName == it.packageName || details.packageName in it.aliases
+            } == true
+        if (!matchesExpected) {
+            return@withContext StartResult.Failed(context.getString(R.string.error_install_package_mismatch))
+        }
 
-        return try {
+        var sessionId = -1
+        try {
             val installer = context.packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(
                 PackageInstaller.SessionParams.MODE_FULL_INSTALL,
             ).apply {
-                setAppPackageName(packageName)
+                setAppPackageName(details.packageName)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
                 }
             }
 
-            val sessionId = installer.createSession(params)
+            sessionId = installer.createSession(params)
             installer.openSession(sessionId).use { session ->
                 val output = session.openWrite("base.apk", 0L, file.length())
                 try {
@@ -67,9 +82,12 @@ object Installer {
                 }
 
                 val callback = Intent(context, InstallResultReceiver::class.java).apply {
-                    putExtra(InstallResultReceiver.EXTRA_PACKAGE, packageName)
+                    putExtra(
+                        InstallResultReceiver.EXTRA_PACKAGE,
+                        AppRegistry.canonicalPackageName(packageName),
+                    )
                     putExtra(InstallResultReceiver.EXTRA_TAG, releaseTag)
-                    putExtra(InstallResultReceiver.EXTRA_VERSION_CODE, versionCode)
+                    putExtra(InstallResultReceiver.EXTRA_VERSION_CODE, details.versionCode)
                     putExtra(InstallResultReceiver.EXTRA_FILE_PATH, file.absolutePath)
                 }
                 val pending = PendingIntent.getBroadcast(
@@ -82,21 +100,11 @@ object Installer {
             }
             StartResult.Started
         } catch (error: Throwable) {
-            runCatching { openWithSystemInstaller(context, file) }
+            if (sessionId >= 0) {
+                runCatching { context.packageManager.packageInstaller.abandonSession(sessionId) }
+            }
+            if (error is CancellationException) throw error
             StartResult.Failed(error.message ?: "install_session_failed")
         }
-    }
-
-    fun openWithSystemInstaller(context: Context, file: File) {
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.files",
-            file,
-        )
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(intent)
     }
 }

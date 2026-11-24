@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import io.github.darkboyjyoti.morpheupdater.R
+import io.github.darkboyjyoti.morpheupdater.data.AppRegistry
 import io.github.darkboyjyoti.morpheupdater.data.ApkInspector
 import io.github.darkboyjyoti.morpheupdater.data.Compatibility
 import io.github.darkboyjyoti.morpheupdater.data.DownloadFiles
@@ -44,11 +45,14 @@ class InstallerActivity : AppCompatActivity() {
         binding.toolbar.setNavigationOnClickListener { finish() }
         binding.pickApkButton.setOnClickListener { pickLauncher.launch(arrayOf("*/*")) }
         binding.installApkButton.setOnClickListener { installPicked() }
+        InstallTracker.packages.observe(this) {
+            pickedDetails?.let { details -> pickedFile?.let { file -> renderPicked(file, details) } }
+            refreshDownloadedList()
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        InstallTracker.clear()
         pickedDetails?.let { details -> pickedFile?.let { renderPicked(it, details) } }
         refreshDownloadedList()
     }
@@ -123,10 +127,16 @@ class InstallerActivity : AppCompatActivity() {
         binding.compatText.text = message
 
         val canInstall = support is SupportResult.Supported
-        binding.installApkButton.isEnabled = canInstall
+        val trackerPackage = AppRegistry.canonicalPackageName(details.packageName)
+        val installing = trackerPackage in (InstallTracker.packages.value ?: emptySet())
+        binding.installApkButton.isEnabled = canInstall && !installing
         binding.installApkButton.alpha = if (canInstall) 1f else 0.45f
         binding.installApkButton.setText(
-            if (installed != null) R.string.action_update else R.string.action_install,
+            when {
+                installing -> R.string.action_installing
+                installed != null -> R.string.action_update
+                else -> R.string.action_install
+            },
         )
         binding.installApkButton.setOnClickListener { installPicked() }
     }
@@ -138,17 +148,21 @@ class InstallerActivity : AppCompatActivity() {
     }
 
     private fun requestInstall(file: File, packageName: String, tag: String?) {
-        when (val result = Installer.start(this, file, packageName, tag)) {
-            Installer.StartResult.Started -> {
-                InstallTracker.begin(packageName)
-                binding.installApkButton.setText(R.string.action_installing)
-                binding.installApkButton.isEnabled = false
-                toast(getString(R.string.toast_installed))
+        val trackerPackage = AppRegistry.canonicalPackageName(packageName)
+        if (trackerPackage in (InstallTracker.packages.value ?: emptySet())) return
+        InstallTracker.begin(trackerPackage)
+        lifecycleScope.launch {
+            when (val result = Installer.start(this@InstallerActivity, file, packageName, tag)) {
+                Installer.StartResult.Started -> toast(getString(R.string.toast_installed))
+                Installer.StartResult.NeedPermission -> {
+                    InstallTracker.finish(trackerPackage)
+                    UiUtils.showInstallPermissionDialog(this@InstallerActivity)
+                }
+                is Installer.StartResult.Failed -> {
+                    InstallTracker.finish(trackerPackage)
+                    toast(getString(R.string.error_install_failed, result.message))
+                }
             }
-            Installer.StartResult.NeedPermission -> UiUtils.showInstallPermissionDialog(this)
-            is Installer.StartResult.Failed -> toast(
-                getString(R.string.error_install_failed, result.message),
-            )
         }
     }
 
@@ -163,7 +177,8 @@ class InstallerActivity : AppCompatActivity() {
                 binding.downloadedList,
                 false,
             )
-            val packageName = file.name.substringBeforeLast('-', file.name)
+            val packageName = DownloadFiles.packageNameFromFile(file)
+            val installing = packageName in (InstallTracker.packages.value ?: emptySet())
             item.downloadName.text = file.name
             item.downloadMeta.text = buildString {
                 append(DownloadFiles.formatBytes(file.length()))
@@ -172,8 +187,12 @@ class InstallerActivity : AppCompatActivity() {
                     append(packageName)
                 }
             }
+            item.installButton.setText(
+                if (installing) R.string.action_installing else R.string.action_install,
+            )
+            item.installButton.isEnabled = !installing
             item.installButton.setOnClickListener {
-                requestInstall(file, packageName, null)
+                if (!installing) requestInstall(file, packageName, DownloadFiles.releaseTagFor(file))
             }
             item.deleteButton.setOnClickListener {
                 DownloadFiles.delete(file)
