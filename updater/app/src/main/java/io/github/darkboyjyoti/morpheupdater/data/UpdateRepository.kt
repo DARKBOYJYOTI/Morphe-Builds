@@ -35,9 +35,7 @@ object UpdateRepository {
             val upToDate = when {
                 installed == null -> false
                 signatureConflict -> false
-                asset.versionCode > 0L -> installed.versionCode >= asset.versionCode
                 trustTracked -> trackedTag == release.tag
-                asset.versionName.isNotBlank() -> installed.versionName == asset.versionName
                 else -> false
             }
 
