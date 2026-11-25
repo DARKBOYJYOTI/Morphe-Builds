@@ -113,6 +113,7 @@ jobs:
       - name: Publish stable updater release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           APK="$RUNNER_TEMP/updater/app-release.apk"
           cp "$APK" "$RUNNER_TEMP/morphe-builds-updater.apk"
