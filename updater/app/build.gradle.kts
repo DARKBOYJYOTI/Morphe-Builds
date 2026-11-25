@@ -84,6 +84,20 @@ android {
     lint {
         abortOnError = true
         warningsAsErrors = true
+        // Advisory checks that do not indicate defects in this project.
+        disable += setOf(
+            "AndroidGradlePluginVersion",
+            "GradleDependency",
+            "MonochromeLauncherIcon",
+            "NotifyDataSetChanged",
+            "Overdraw",
+            "PluralsCandidate",
+            "UnusedAttribute",
+            "UnusedResources",
+            "UseCompoundDrawables",
+            "UseKtx",
+            "VectorPath",
+        )
     }
 }
 

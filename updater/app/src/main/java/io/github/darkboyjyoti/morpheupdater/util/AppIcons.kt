@@ -107,7 +107,7 @@ object AppIcons {
             }
             try {
                 if (connection.responseCode !in 200..299) return null
-                val contentLength = connection.contentLengthLong
+                val contentLength = connection.contentLength.toLong()
                 if (contentLength > MAX_ICON_BYTES) return null
                 val buffer = ByteArray(64 * 1024)
                 val output = java.io.ByteArrayOutputStream()
